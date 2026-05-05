@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+/*
+ * Base16 palette: Mountain (Boosted)
+ * Default for local dev. Production builds inject via BASE16_SCHEME env var.
+ *
+ * Three layers of color reference:
+ *   --base00..--base0F   Raw palette (matches base16 standard)
+ *   --bg-deep etc.       Semantic aliases (for CSS/shadcn)
+ *   --color-deep etc.    Tailwind @theme tokens (bg-deep, text-muted, etc.)
+ */
+
+:root {
+  /* Raw base16 palette */
+  --base00: #100f0e;
+  --base01: #1b1918;
+  --base02: #292624;
+  --base03: #6d6562;
+  --base04: #c4a6a8;
+  --base05: #d4ceca;
+  --base06: #e8e2dd;
+  --base07: #fafafa;
+  --base08: #c4a6a8;
+  --base09: #dac09a;
+  --base0A: #c4c090;
+  --base0B: #a2c4a3;
+  --base0C: #a2c3c4;
+  --base0D: #aaa8c4;
+  --base0E: #c4a6c4;
+  --base0F: #c4a6a8;
+
+  /* Background layers */
+  --bg-deep: var(--base00);
+  --bg-surface: var(--base01);
+  --bg-raised: var(--base02);
+
+  /* Foreground levels */
+  --fg-muted: var(--base03);
+  --fg-dim: var(--base04);
+  --fg-primary: var(--base05);
+  --fg-bright: var(--base06);
+  --fg-max: var(--base07);
+
+  /* Accents (foreground only, never large surfaces) */
+  --accent-rose: var(--base08);
+  --accent-gold: var(--base09);
+  --accent-olive: var(--base0A);
+  --accent-green: var(--base0B);
+  --accent-steel: var(--base0C);
+  --accent-lavender: var(--base0D);
+  --accent-mauve: var(--base0E);
+
+  /* shadcn variable mappings */
+  --background: var(--base00);
+  --foreground: var(--base05);
+  --card: var(--base01);
+  --card-foreground: var(--base05);
+  --popover: var(--base01);
+  --popover-foreground: var(--base05);
+  --primary: var(--base06);
+  --primary-foreground: var(--base00);
+  --secondary: var(--base02);
+  --secondary-foreground: var(--base06);
+  --muted: var(--base02);
+  --muted-foreground: var(--base03);
+  --accent: var(--base02);
+  --accent-foreground: var(--base06);
+  --destructive: var(--base08);
+  --destructive-foreground: var(--base07);
+  --border: var(--base00);
+  --input: var(--base02);
+  --ring: var(--base0D);
+}
+
+/* Tailwind v4 design tokens */
+@theme {
+  --color-deep: #100f0e;
+  --color-surface: #1b1918;
+  --color-raised: #292624;
+  --color-muted: #6d6562;
+  --color-dim: #c4a6a8;
+  --color-primary: #d4ceca;
+  --color-bright: #e8e2dd;
+  --color-max: #fafafa;
+  --color-rose: #c4a6a8;
+  --color-gold: #dac09a;
+  --color-olive: #c4c090;
+  --color-green: #a2c4a3;
+  --color-steel: #a2c3c4;
+  --color-lavender: #aaa8c4;
+  --color-mauve: #c4a6c4;
+
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+
+  --font-mono:
+    "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", ui-monospace, monospace;
+}
+
+body {
+  margin: 0;
+  background-color: var(--base00);
+  color: var(--base05);
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Design system: borders invisible, no shadows */
+*,
+*::before,
+*::after {
+  border-color: var(--base00);
+  box-shadow: none;
+}
+
+/* Focus ring — lavender, the only visible border-like element */
+:focus-visible {
+  outline: 2px solid var(--base0D);
+  outline-offset: 2px;
+}

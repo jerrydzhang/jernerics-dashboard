@@ -1,0 +1,40 @@
+{
+    "name": "jernerics-dashboard",
+    "version": "0.2.0",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "postinstall": "bun2nix -o bun.nix"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "^2.4.14",
+        "@playwright/cli": "^0.1.11",
+        "@tailwindcss/vite": "^4.2.4",
+        "@testing-library/jest-dom": "^6.9.1",
+        "@testing-library/react": "^16.3.2",
+        "@testing-library/user-event": "^14.6.1",
+        "@types/bun": "^1.3.13",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.0.1",
+        "@vtsls/language-server": "^0.3.0",
+        "jsdom": "^29.1.1",
+        "playwright": "^1.59.1",
+        "tailwindcss": "^4.2.4",
+        "vite": "^8.0.10",
+        "vitest": "^4.1.5"
+    },
+    "peerDependencies": {
+        "typescript": "^6.0.3"
+    },
+    "dependencies": {
+        "@tanstack/react-query": "^5.100.9",
+        "echarts": "^5.6.0",
+        "echarts-for-react": "^3.0.2",
+        "react": "^19.2.5",
+        "react-dom": "^19.2.5"
+    }
+}
