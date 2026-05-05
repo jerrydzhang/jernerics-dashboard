@@ -120,3 +120,8 @@ body {
   outline: 2px solid var(--base0D);
   outline-offset: 2px;
 }
+
+/* Rhythm lines: faint horizontal rule every 5 rows */
+.rhythm-table > tr:nth-child(5n) {
+  border-bottom: 1px solid color-mix(in srgb, var(--base03) 30%, transparent);
+}

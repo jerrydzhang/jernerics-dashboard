@@ -3,8 +3,10 @@ import { useCallback, useState } from "react";
 
 import { getToken, setToken } from "./api/client";
 import { ObjectiveToolbar } from "./components/ObjectiveToolbar";
+import { TrialTable } from "./components/TrialTable";
 import { useObjective } from "./hooks/useObjective";
 import { useProjects, useSweeps } from "./hooks/useProjects";
+import { useTrialData } from "./hooks/useTrialData";
 import { parseStudyName } from "./queries/studyName";
 
 const queryClient = new QueryClient();
@@ -213,6 +215,8 @@ function StudyView({
   sweepNames: string[];
 }) {
   const { objectives, set: setObjectives } = useObjective(project);
+  const trialData = useTrialData(project, sweepNames);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   return (
     <div className="p-6">
@@ -236,11 +240,17 @@ function StudyView({
         </p>
       )}
 
-      {/* TODO: Objective summary strip */}
-      {/* TODO: Objective scatter */}
-      {/* TODO: Metric curves with percentile bands */}
-      {/* TODO: Parallel coordinates (ECharts) */}
-      {/* TODO: Trial table */}
+      {/* Trial table */}
+      {trialData.data && trialData.data.length > 0 && (
+        <div className="mt-4">
+          <TrialTable
+            trials={trialData.data}
+            objectives={objectives ?? []}
+            selectedIds={selectedIds}
+            onSelect={setSelectedIds}
+          />
+        </div>
+      )}
     </div>
   );
 }
