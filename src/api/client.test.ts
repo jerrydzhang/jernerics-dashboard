@@ -32,7 +32,8 @@ describe("API client", () => {
       const result = await query<{ cnt: number }>("SELECT 1 as cnt");
 
       expect(mock).toHaveBeenCalledOnce();
-      const call = mock.mock.calls[0]!;
+      const call = mock.mock.calls[0];
+      if (!call) throw new Error("no call recorded");
       expect(call[0]).toBe("/query");
       expect(call[1].method).toBe("POST");
       expect(call[1].headers).toMatchObject({
@@ -54,7 +55,8 @@ describe("API client", () => {
       await query("SELECT 1");
 
       expect(mock).toHaveBeenCalledOnce();
-      const call = mock.mock.calls[0]!;
+      const call = mock.mock.calls[0];
+      if (!call) throw new Error("no call recorded");
       const headers = call[1].headers as Record<string, string>;
       expect(headers).not.toHaveProperty("Authorization");
     });

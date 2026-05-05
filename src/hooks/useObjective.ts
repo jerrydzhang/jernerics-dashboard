@@ -5,29 +5,24 @@ export interface ObjectiveEntry {
   direction: "minimize" | "maximize";
 }
 
-export interface ObjectiveConfig {
-  primary: ObjectiveEntry;
-  secondary: ObjectiveEntry | null;
-}
-
 const STORAGE_PREFIX = "objective:";
 
 function storageKey(project: string): string {
   return `${STORAGE_PREFIX}${project}`;
 }
 
-export function getObjective(project: string): ObjectiveConfig | null {
+export function getObjective(project: string): ObjectiveEntry[] | null {
   const raw = localStorage.getItem(storageKey(project));
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as ObjectiveConfig;
+    return JSON.parse(raw) as ObjectiveEntry[];
   } catch {
     return null;
   }
 }
 
-export function setObjective(project: string, config: ObjectiveConfig): void {
-  localStorage.setItem(storageKey(project), JSON.stringify(config));
+export function setObjective(project: string, entries: ObjectiveEntry[]): void {
+  localStorage.setItem(storageKey(project), JSON.stringify(entries));
 }
 
 export function clearObjective(project: string): void {
@@ -58,17 +53,17 @@ export function useObjective(project: string | null) {
 
   const raw = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  let config: ObjectiveConfig | null = null;
+  let objectives: ObjectiveEntry[] | null = null;
   try {
-    config = JSON.parse(raw) as ObjectiveConfig | null;
+    objectives = JSON.parse(raw) as ObjectiveEntry[] | null;
   } catch {
-    config = null;
+    objectives = null;
   }
 
   const set = useCallback(
-    (newConfig: ObjectiveConfig) => {
+    (entries: ObjectiveEntry[]) => {
       if (!project) return;
-      setObjective(project, newConfig);
+      setObjective(project, entries);
       window.dispatchEvent(
         new StorageEvent("storage", { key: storageKey(project) }),
       );
@@ -76,5 +71,13 @@ export function useObjective(project: string | null) {
     [project],
   );
 
-  return { config, set };
+  const clear = useCallback(() => {
+    if (!project) return;
+    clearObjective(project);
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: storageKey(project) }),
+    );
+  }, [project]);
+
+  return { objectives, set, clear };
 }

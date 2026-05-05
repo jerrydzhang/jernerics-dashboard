@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearObjective,
   getObjective,
-  type ObjectiveConfig,
+  type ObjectiveEntry,
   setObjective,
 } from "./useObjective";
 
-describe("useObjective", () => {
+describe("useObjective (pure functions)", () => {
   beforeEach(() => {
     localStorage.clear();
   });
@@ -16,42 +16,37 @@ describe("useObjective", () => {
     expect(getObjective("my-project")).toBeNull();
   });
 
-  it("round-trips primary-only objective through localStorage", () => {
-    const config: ObjectiveConfig = {
-      primary: { key: "final_loss", direction: "minimize" },
-      secondary: null,
-    };
-    setObjective("my-project", config);
-    expect(getObjective("my-project")).toEqual(config);
+  it("round-trips a single objective", () => {
+    const entries: ObjectiveEntry[] = [
+      { key: "final_loss", direction: "minimize" },
+    ];
+    setObjective("my-project", entries);
+    expect(getObjective("my-project")).toEqual(entries);
   });
 
-  it("round-trips primary + secondary objective through localStorage", () => {
-    const config: ObjectiveConfig = {
-      primary: { key: "final_loss", direction: "minimize" },
-      secondary: { key: "accuracy", direction: "maximize" },
-    };
-    setObjective("my-project", config);
-    expect(getObjective("my-project")).toEqual(config);
+  it("round-trips multiple objectives", () => {
+    const entries: ObjectiveEntry[] = [
+      { key: "final_loss", direction: "minimize" },
+      { key: "accuracy", direction: "maximize" },
+      { key: "latency_ms", direction: "minimize" },
+    ];
+    setObjective("my-project", entries);
+    expect(getObjective("my-project")).toEqual(entries);
   });
 
   it("stores per project", () => {
-    setObjective("project-a", {
-      primary: { key: "accuracy", direction: "maximize" },
-      secondary: null,
-    });
-    setObjective("project-b", {
-      primary: { key: "loss", direction: "minimize" },
-      secondary: null,
-    });
-    expect(getObjective("project-a")?.primary.key).toBe("accuracy");
-    expect(getObjective("project-b")?.primary.key).toBe("loss");
+    setObjective("project-a", [{ key: "accuracy", direction: "maximize" }]);
+    setObjective("project-b", [{ key: "loss", direction: "minimize" }]);
+    expect(getObjective("project-a")).toEqual([
+      { key: "accuracy", direction: "maximize" },
+    ]);
+    expect(getObjective("project-b")).toEqual([
+      { key: "loss", direction: "minimize" },
+    ]);
   });
 
   it("clears objective", () => {
-    setObjective("my-project", {
-      primary: { key: "loss", direction: "minimize" },
-      secondary: null,
-    });
+    setObjective("my-project", [{ key: "loss", direction: "minimize" }]);
     clearObjective("my-project");
     expect(getObjective("my-project")).toBeNull();
   });
