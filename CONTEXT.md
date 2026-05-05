@@ -153,6 +153,10 @@ Each chart panel supports **axis/channel selectors** (dropdowns to change what m
 - **Reference baselines**: optional horizontal line/region on any chart showing a target value (e.g., true solution for symbolic regression, known state-of-the-art). Implemented via ECharts `markLine`.
 - **Cosmetic controls**: gridlines, spacing, titles — good defaults with per-chart toggles.
 
+## Browser interaction
+
+The dashboard is a mouse-driven app. No app-level keyboard shortcuts. The only keyboard goal is: **don't break qutebrowser**. That means writing semantically correct HTML so qutebrowser's hint mode (`f`), input focus (`gi`), find (`/`), and scrolling (`j`/`k`) work without fighting the DOM. Specifically: use real `<button>` elements (not `<div onClick>`), `<label>` + `id` on inputs, logical DOM order, and no `tabindex` hacks. Visual design is always the priority — never compromise layout or clarity for keyboard interaction.
+
 ## Flagged ambiguities
 
 (none yet)

@@ -2,11 +2,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
 import { getToken, setToken } from "./api/client";
+import { MetricCurves } from "./components/MetricCurves";
 import { ObjectiveToolbar } from "./components/ObjectiveToolbar";
 import { TrialTable } from "./components/TrialTable";
 import { useObjective } from "./hooks/useObjective";
 import { useProjects, useSweeps } from "./hooks/useProjects";
-import { useTrialData } from "./hooks/useTrialData";
+import {
+  useMetricData,
+  useMetricKeys,
+  useTrialData,
+} from "./hooks/useTrialData";
 import { parseStudyName } from "./queries/studyName";
 
 const queryClient = new QueryClient();
@@ -216,7 +221,18 @@ function StudyView({
 }) {
   const { objectives, set: setObjectives } = useObjective(project);
   const trialData = useTrialData(project, sweepNames);
+  const metricKeys = useMetricKeys(project, sweepNames);
+  const [selectedMetricKey, setSelectedMetricKey] = useState<string | null>(
+    null,
+  );
+  const metricData = useMetricData(project, sweepNames, selectedMetricKey);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Auto-select first metric key when keys arrive
+  const handleMetricKeys = metricKeys.data;
+  if (!selectedMetricKey && handleMetricKeys && handleMetricKeys.length > 0) {
+    setSelectedMetricKey(handleMetricKeys[0] ?? "");
+  }
 
   return (
     <div className="p-6">
@@ -238,6 +254,21 @@ function StudyView({
         <p className="mt-3 text-sm text-muted">
           Configure objectives above to see analysis.
         </p>
+      )}
+
+      {/* Metric curves */}
+      {metricKeys.data && metricKeys.data.length > 0 && (
+        <div className="mt-4">
+          <MetricCurves
+            series={metricData.data ?? []}
+            trials={trialData.data ?? []}
+            metricKeys={metricKeys.data}
+            selectedMetricKey={selectedMetricKey}
+            onMetricChange={setSelectedMetricKey}
+            selectedIds={selectedIds}
+            onSelect={setSelectedIds}
+          />
+        </div>
       )}
 
       {/* Trial table */}

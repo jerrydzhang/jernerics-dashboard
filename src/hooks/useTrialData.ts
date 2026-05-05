@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { query } from "../api/client";
 import { listTrialArtifacts } from "../queries/artifacts";
-import { listMetricData } from "../queries/metrics";
+import { listMetricData, listMetricKeys } from "../queries/metrics";
 import {
   listTrialParams,
   listTrialResults,
@@ -70,6 +70,20 @@ export function useMetricData(
       return groupMetricsByTrial(rows);
     },
     enabled: sweepNames.length > 0 && !!metricKey,
+  });
+}
+
+export function useMetricKeys(project: string, sweepNames: string[]) {
+  return useQuery({
+    queryKey: ["metricKeys", project, sweepNames],
+    queryFn: async () => {
+      if (sweepNames.length === 0) return [];
+      const { rows } = await query<{ key: string }>(
+        listMetricKeys(project, sweepNames),
+      );
+      return rows.map((r) => r.key);
+    },
+    enabled: sweepNames.length > 0,
   });
 }
 
