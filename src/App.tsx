@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 
 import { getToken, setToken } from "./api/client";
 import { MetricCurves } from "./components/MetricCurves";
+import { ObjectiveScatter } from "./components/ObjectiveScatter";
 import { ObjectiveToolbar } from "./components/ObjectiveToolbar";
 import { TrialTable } from "./components/TrialTable";
 import { useObjective } from "./hooks/useObjective";
@@ -254,6 +255,18 @@ function StudyView({
         <p className="mt-3 text-sm text-muted">
           Configure objectives above to see analysis.
         </p>
+      )}
+
+      {/* Objective scatter */}
+      {objectives && objectives.length > 0 && (
+        <div className="mt-4">
+          <ObjectiveScatter
+            trials={trialData.data ?? []}
+            objectives={objectives}
+            selectedIds={selectedIds}
+            onSelect={setSelectedIds}
+          />
+        </div>
       )}
 
       {/* Metric curves */}
