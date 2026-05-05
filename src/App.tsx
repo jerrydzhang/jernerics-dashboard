@@ -6,8 +6,11 @@ import { MetricCurves } from "./components/MetricCurves";
 import { ObjectiveScatter } from "./components/ObjectiveScatter";
 import { ObjectiveSummaryStrip } from "./components/ObjectiveSummaryStrip";
 import { ObjectiveToolbar } from "./components/ObjectiveToolbar";
+import { PanelMessage } from "./components/PanelMessage";
 import { ParallelCoordinates } from "./components/ParallelCoordinates";
+import { TrialComparison } from "./components/TrialComparison";
 import { TrialTable } from "./components/TrialTable";
+import type { ObjectiveEntry } from "./hooks/useObjective";
 import { useObjective } from "./hooks/useObjective";
 import { useProjects, useSweeps } from "./hooks/useProjects";
 import {
@@ -16,6 +19,7 @@ import {
   useTrialData,
 } from "./hooks/useTrialData";
 import { parseStudyName } from "./queries/studyName";
+import type { Trial } from "./transforms/groupTrials";
 
 const queryClient = new QueryClient();
 
@@ -230,11 +234,39 @@ function StudyView({
   );
   const metricData = useMetricData(project, sweepNames, selectedMetricKey);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showComparison, setShowComparison] = useState(false);
 
   // Auto-select first metric key when keys arrive
   const handleMetricKeys = metricKeys.data;
   if (!selectedMetricKey && handleMetricKeys && handleMetricKeys.length > 0) {
     setSelectedMetricKey(handleMetricKeys[0] ?? "");
+  }
+
+  const hasTrials = !!(trialData.data && trialData.data.length > 0);
+  const hasObjectives = !!(objectives && objectives.length > 0);
+
+  // Shared trial-data panel state: error → loading → empty → (optional objectives) → ready
+  function trialPanel(
+    content: (trials: Trial[], objectives: ObjectiveEntry[]) => React.ReactNode,
+    needsObjectives = true,
+  ) {
+    if (trialData.error) {
+      return (
+        <PanelMessage onRetry={() => trialData.refetch()}>
+          Failed to load trial data
+        </PanelMessage>
+      );
+    }
+    if (trialData.isPending) {
+      return <PanelMessage>Loading...</PanelMessage>;
+    }
+    if (!hasTrials) {
+      return <PanelMessage>This sweep has no trials yet</PanelMessage>;
+    }
+    if (needsObjectives && !hasObjectives) {
+      return <PanelMessage>Set objectives above to see analysis</PanelMessage>;
+    }
+    return content(trialData.data ?? [], objectives ?? []);
   }
 
   return (
@@ -253,38 +285,47 @@ function StudyView({
         />
       </div>
 
-      {(!objectives || objectives.length === 0) && (
+      {!hasObjectives && (
         <p className="mt-3 text-sm text-muted">
           Configure objectives above to see analysis.
         </p>
       )}
 
-      {objectives && objectives.length > 0 && (
-        <div className="mt-4">
+      {/* Objective summary strip */}
+      <div className="mt-4">
+        {trialPanel((trials, objs) => (
           <ObjectiveSummaryStrip
-            trials={trialData.data ?? []}
-            objectives={objectives}
+            trials={trials}
+            objectives={objs}
             selectedIds={selectedIds}
             onSelect={setSelectedIds}
           />
-        </div>
-      )}
+        ))}
+      </div>
 
       {/* Objective scatter */}
-      {objectives && objectives.length > 0 && (
-        <div className="mt-4">
+      <div className="mt-4">
+        {trialPanel((trials, objs) => (
           <ObjectiveScatter
-            trials={trialData.data ?? []}
-            objectives={objectives}
+            trials={trials}
+            objectives={objs}
             selectedIds={selectedIds}
             onSelect={setSelectedIds}
           />
-        </div>
-      )}
+        ))}
+      </div>
 
       {/* Metric curves */}
-      {metricKeys.data && metricKeys.data.length > 0 && (
-        <div className="mt-4">
+      <div className="mt-4">
+        {metricKeys.error ? (
+          <PanelMessage onRetry={() => metricKeys.refetch()}>
+            Failed to load metrics
+          </PanelMessage>
+        ) : metricKeys.isPending ? (
+          <PanelMessage>Loading...</PanelMessage>
+        ) : !metricKeys.data || metricKeys.data.length === 0 ? (
+          <PanelMessage>No metrics available</PanelMessage>
+        ) : (
           <MetricCurves
             series={metricData.data ?? []}
             trials={trialData.data ?? []}
@@ -294,34 +335,60 @@ function StudyView({
             selectedIds={selectedIds}
             onSelect={setSelectedIds}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Parallel coordinates */}
-      {objectives &&
-        objectives.length > 0 &&
-        trialData.data &&
-        trialData.data.length > 0 && (
-          <div className="mt-4">
-            <ParallelCoordinates
-              trials={trialData.data}
-              objectives={objectives}
-              selectedIds={selectedIds}
-              onSelect={setSelectedIds}
-            />
-          </div>
-        )}
-
-      {/* Trial table */}
-      {trialData.data && trialData.data.length > 0 && (
-        <div className="mt-4">
-          <TrialTable
-            trials={trialData.data}
-            objectives={objectives ?? []}
+      <div className="mt-4">
+        {trialPanel((trials, objs) => (
+          <ParallelCoordinates
+            trials={trials}
+            objectives={objs}
             selectedIds={selectedIds}
             onSelect={setSelectedIds}
           />
-        </div>
+        ))}
+      </div>
+
+      {/* Trial table */}
+      <div className="mt-4">
+        {trialPanel(
+          (trials, objs) => (
+            <>
+              <div className="mb-2 flex items-center gap-2">
+                {selectedIds.size >= 2 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowComparison(true)}
+                    className="cursor-pointer bg-raised px-3 py-1 text-sm text-primary hover:text-bright"
+                  >
+                    Compare {selectedIds.size} trials
+                  </button>
+                )}
+              </div>
+              <TrialTable
+                trials={trials}
+                objectives={objs}
+                selectedIds={selectedIds}
+                onSelect={setSelectedIds}
+              />
+            </>
+          ),
+          false,
+        )}
+      </div>
+
+      {/* Comparison modal */}
+      {showComparison && trialData.data && (
+        <TrialComparison
+          trials={trialData.data.filter((t) =>
+            selectedIds.has(`${t.studyName}\0${t.trialId}`),
+          )}
+          objectives={objectives ?? []}
+          project={project}
+          sweepNames={sweepNames}
+          onClose={() => setShowComparison(false)}
+        />
       )}
     </div>
   );

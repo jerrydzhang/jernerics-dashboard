@@ -55,7 +55,8 @@ export function useObjective(project: string | null) {
 
   let objectives: ObjectiveEntry[] | null = null;
   try {
-    objectives = JSON.parse(raw) as ObjectiveEntry[] | null;
+    const parsed = JSON.parse(raw);
+    objectives = Array.isArray(parsed) ? parsed : null;
   } catch {
     objectives = null;
   }
