@@ -5,6 +5,7 @@ import { getToken, setToken } from "./api/client";
 import { MetricCurves } from "./components/MetricCurves";
 import { ObjectiveScatter } from "./components/ObjectiveScatter";
 import { ObjectiveToolbar } from "./components/ObjectiveToolbar";
+import { ParallelCoordinates } from "./components/ParallelCoordinates";
 import { TrialTable } from "./components/TrialTable";
 import { useObjective } from "./hooks/useObjective";
 import { useProjects, useSweeps } from "./hooks/useProjects";
@@ -283,6 +284,21 @@ function StudyView({
           />
         </div>
       )}
+
+      {/* Parallel coordinates */}
+      {objectives &&
+        objectives.length > 0 &&
+        trialData.data &&
+        trialData.data.length > 0 && (
+          <div className="mt-4">
+            <ParallelCoordinates
+              trials={trialData.data}
+              objectives={objectives}
+              selectedIds={selectedIds}
+              onSelect={setSelectedIds}
+            />
+          </div>
+        )}
 
       {/* Trial table */}
       {trialData.data && trialData.data.length > 0 && (
