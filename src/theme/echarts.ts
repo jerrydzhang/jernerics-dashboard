@@ -9,7 +9,7 @@ import type { ComposeOption } from "echarts/core";
  * (light mode, different Stylix config), rebuild to pick up new values.
  */
 
-const colors = {
+export const colors = {
   base00: "#100f0e",
   base01: "#1b1918",
   base02: "#292624",
@@ -60,3 +60,11 @@ export const mountainTheme: ComposeOption<never> = {
   },
   color: categorical,
 } as never;
+
+/** Convert a hex color to an rgba string with the given alpha. */
+export function withAlpha(hex: string, alpha: number): string {
+  const r = Number.parseInt(hex.slice(1, 3), 16);
+  const g = Number.parseInt(hex.slice(3, 5), 16);
+  const b = Number.parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}

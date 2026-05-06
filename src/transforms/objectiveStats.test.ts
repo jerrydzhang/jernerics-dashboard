@@ -1,16 +1,16 @@
-import { describe, expect, it } from "bun:test";
-import type { Trial } from "./groupTrials";
+import { describe, expect, it } from "vitest";
+import type { Trial } from "../trial";
 import { computeObjectiveStats } from "./objectiveStats";
 
 const trial = (
   id: number,
-  results: Record<string, number>,
+  finalMetrics: Record<string, number>,
   complete = true,
 ): Trial => ({
   studyName: "test",
   trialId: id,
   params: {},
-  results,
+  finalMetrics,
   complete,
 });
 

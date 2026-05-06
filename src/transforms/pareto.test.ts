@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-
 import type { ObjectiveEntry } from "../hooks/useObjective";
-import type { Trial } from "../transforms/groupTrials";
+import type { Trial } from "../trial";
 import { computeParetoFront } from "./pareto";
 
 const objectives: ObjectiveEntry[] = [{ key: "loss", direction: "minimize" }];
@@ -13,14 +12,14 @@ describe("computeParetoFront", () => {
         studyName: "s",
         trialId: 0,
         params: {},
-        results: { loss: 0.5 },
+        finalMetrics: { loss: 0.5 },
         complete: true,
       },
       {
         studyName: "s",
         trialId: 1,
         params: {},
-        results: { loss: 0.3 },
+        finalMetrics: { loss: 0.3 },
         complete: true,
       },
     ];
@@ -47,7 +46,7 @@ describe("computeParetoFront", () => {
         studyName: "s",
         trialId: 0,
         params: {},
-        results: { loss: 0.8, acc: 0.7 },
+        finalMetrics: { loss: 0.8, acc: 0.7 },
         complete: true,
       },
       // Pareto: best acc
@@ -55,7 +54,7 @@ describe("computeParetoFront", () => {
         studyName: "s",
         trialId: 1,
         params: {},
-        results: { loss: 0.5, acc: 0.95 },
+        finalMetrics: { loss: 0.5, acc: 0.95 },
         complete: true,
       },
       // Pareto: best loss
@@ -63,7 +62,7 @@ describe("computeParetoFront", () => {
         studyName: "s",
         trialId: 2,
         params: {},
-        results: { loss: 0.2, acc: 0.85 },
+        finalMetrics: { loss: 0.2, acc: 0.85 },
         complete: true,
       },
     ];
@@ -77,16 +76,28 @@ describe("computeParetoFront", () => {
 
   it("returns empty set when objectives list is empty", () => {
     const trials: Trial[] = [
-      { studyName: "s", trialId: 0, params: {}, results: {}, complete: true },
+      {
+        studyName: "s",
+        trialId: 0,
+        params: {},
+        finalMetrics: {},
+        complete: true,
+      },
     ];
     expect(computeParetoFront(trials, [])).toEqual(new Set());
   });
 
   it("returns empty set when trials have no values for objectives", () => {
     const trials: Trial[] = [
-      { studyName: "s", trialId: 0, params: {}, results: {}, complete: true },
+      {
+        studyName: "s",
+        trialId: 0,
+        params: {},
+        finalMetrics: {},
+        complete: true,
+      },
     ];
-    // No trial has "loss" in results, so none can dominate —
+    // No trial has "loss" in finalMetrics, so none can dominate —
     // but dominates() returns false when values are undefined,
     // so all are nondominated
     const front = computeParetoFront(trials, objectives);

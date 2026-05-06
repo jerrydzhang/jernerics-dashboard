@@ -2,12 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { query } from "../api/client";
 import { listTrialArtifacts } from "../queries/artifacts";
-import { listMetricData, listMetricKeys } from "../queries/metrics";
 import {
-  listTrialParams,
-  listTrialResults,
-  listTrialStatus,
-} from "../queries/trialTable";
+  listFinalMetrics,
+  listMetricData,
+  listMetricKeys,
+} from "../queries/metrics";
+import { listTrialParams, listTrialStatus } from "../queries/trialTable";
 import {
   groupArtifactsByTrial,
   type TrialArtifacts,
@@ -16,7 +16,8 @@ import {
   groupMetricsByTrial,
   type MetricSeries,
 } from "../transforms/groupMetrics";
-import { groupTrials, type Trial } from "../transforms/groupTrials";
+import { groupTrials } from "../transforms/groupTrials";
+import type { Trial } from "../trial";
 
 export type { MetricSeries, Trial, TrialArtifacts };
 
@@ -26,7 +27,7 @@ export function useTrialData(project: string, sweepNames: string[]) {
     queryFn: async () => {
       if (sweepNames.length === 0) return [];
 
-      const [paramsRes, resultsRes, statusRes] = await Promise.all([
+      const [paramsRes, finalMetricsRes, statusRes] = await Promise.all([
         query<{
           study_name: string;
           trial_id: number;
@@ -38,13 +39,13 @@ export function useTrialData(project: string, sweepNames: string[]) {
           trial_id: number;
           key: string;
           value: number;
-        }>(listTrialResults(project, sweepNames)),
+        }>(listFinalMetrics(project, sweepNames)),
         query<{ study_name: string; trial_id: number; status: string }>(
           listTrialStatus(project, sweepNames),
         ),
       ]);
 
-      return groupTrials(paramsRes.rows, resultsRes.rows, statusRes.rows);
+      return groupTrials(paramsRes.rows, finalMetricsRes.rows, statusRes.rows);
     },
     enabled: sweepNames.length > 0,
   });

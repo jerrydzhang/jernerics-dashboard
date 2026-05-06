@@ -1,12 +1,15 @@
 import type { ObjectiveEntry } from "../hooks/useObjective";
 import { parseStudyName } from "../queries/studyName";
-import type { Trial } from "./groupTrials";
+import type { Trial } from "../trial";
+import { makeTrialKey } from "../trial";
+import { type AxisScale, applyAxisScale, inverseAxisScale } from "./axisScale";
 
 export interface ParallelAxis {
   dim: number;
   name: string;
   type: "value" | "category";
   data?: string[];
+  tickFormatter?: (value: number) => string;
 }
 
 export interface ParallelData {
@@ -34,6 +37,7 @@ function sweepLabel(studyName: string): string {
 export function buildParallelData(
   trials: Trial[],
   objectives: ObjectiveEntry[],
+  scales?: Map<string, AxisScale>,
 ): ParallelData {
   if (trials.length === 0) {
     return { axes: [], data: [], trialKeys: [] };
@@ -122,7 +126,7 @@ export function buildParallelData(
   const data: number[][] = [];
 
   for (const trial of trials) {
-    trialKeys.push(`${trial.studyName}\0${trial.trialId}`);
+    trialKeys.push(makeTrialKey(trial.studyName, trial.trialId));
     const row: number[] = [];
 
     for (const axis of axes) {
@@ -133,7 +137,7 @@ export function buildParallelData(
           row.push(Number(trial.params[axis.name] ?? NaN));
         } else {
           // Objective value
-          const val = trial.results[axis.name];
+          const val = trial.finalMetrics[axis.name];
           row.push(val !== undefined ? val : NaN);
         }
       } else {
@@ -146,5 +150,56 @@ export function buildParallelData(
     data.push(row);
   }
 
+  applyScales(axes, data, scales);
+
   return { axes, data, trialKeys };
+}
+
+/**
+ * Apply per-axis scale transforms to built parallel data.
+ * Mutates axes and data in place.
+ * - Adds [scale] suffix to axis names (non-linear only)
+ * - Adds tickFormatter that inverse-transforms back to original values
+ * - Transforms data values for scaled axes, NaN for out-of-domain
+ */
+function applyScales(
+  axes: ParallelAxis[],
+  data: number[][],
+  scales?: Map<string, AxisScale>,
+): void {
+  if (!scales || scales.size === 0) return;
+
+  for (const axis of axes) {
+    if (axis.type !== "value") continue;
+    const scale = scales.get(axis.name);
+    if (!scale || scale === "linear") continue;
+
+    const originalName = axis.name;
+    axis.name = `${originalName} [${scale}]`;
+    axis.tickFormatter = (value: number) => {
+      const original = inverseAxisScale(value, scale);
+      return formatTickValue(original);
+    };
+
+    // Transform data values for this dimension
+    const dim = axis.dim;
+    for (const row of data) {
+      const raw = row[dim];
+      if (raw === undefined || Number.isNaN(raw)) continue;
+      const transformed = applyAxisScale(raw, scale);
+      row[dim] = transformed !== null ? transformed : NaN;
+    }
+  }
+}
+
+function formatTickValue(value: number): string {
+  if (Number.isInteger(value)) return String(value);
+  // Use fixed notation for small values, exponential for large/small
+  if (Math.abs(value) >= 0.001 && Math.abs(value) < 10000) {
+    // Up to 4 significant digits
+    const str = value.toPrecision(4);
+    // Strip trailing zeros after decimal point
+    return str.replace(/\.?0+$/, "");
+  }
+  return value.toExponential(2);
 }

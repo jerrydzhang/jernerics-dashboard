@@ -35,21 +35,6 @@ export function listTrialParams(project: string, studyNames: string[]): string {
   `;
 }
 
-export function listTrialResults(
-  project: string,
-  studyNames: string[],
-): string {
-  if (studyNames.length === 0) return "SELECT NULL LIMIT 0";
-  const escaped = studyNames.map((s) => `'${s.replace(/'/g, "''")}'`);
-  return `
-    SELECT study_name, trial_id, key, value
-    FROM results
-    WHERE project = '${project.replace(/'/g, "''")}'
-      AND study_name IN (${escaped.join(", ")})
-    ORDER BY study_name, trial_id, key
-  `;
-}
-
 export function listObjectiveValues(
   project: string,
   studyNames: string[],
@@ -58,11 +43,12 @@ export function listObjectiveValues(
   if (studyNames.length === 0 || !objectiveKey) return "SELECT NULL LIMIT 0";
   const escaped = studyNames.map((s) => `'${s.replace(/'/g, "''")}'`);
   return `
-    SELECT study_name, trial_id, CAST(value AS DOUBLE) AS objective_value
-    FROM results
+    SELECT study_name, trial_id, value AS objective_value
+    FROM metrics
     WHERE project = '${project.replace(/'/g, "''")}'
       AND study_name IN (${escaped.join(", ")})
       AND key = '${objectiveKey.replace(/'/g, "''")}'
+      AND step IS NULL
     ORDER BY study_name, trial_id
   `;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-
-import { groupTrials, type Trial } from "./groupTrials";
+import type { Trial } from "../trial";
+import { groupTrials } from "./groupTrials";
 
 describe("groupTrials", () => {
   it("groups flat rows into trial objects with params and results", () => {
@@ -29,14 +29,14 @@ describe("groupTrials", () => {
         studyName: "sweep_a",
         trialId: 0,
         params: { lr: "0.01", layers: "3" },
-        results: { loss: 0.5, acc: 0.9 },
+        finalMetrics: { loss: 0.5, acc: 0.9 },
         complete: true,
       },
       {
         studyName: "sweep_a",
         trialId: 1,
         params: { lr: "0.001" },
-        results: { loss: 0.3 },
+        finalMetrics: { loss: 0.3 },
         complete: false,
       },
     ] satisfies Trial[]);
@@ -57,7 +57,7 @@ describe("groupTrials", () => {
         studyName: "s1",
         trialId: 0,
         params: { lr: "0.1" },
-        results: {},
+        finalMetrics: {},
         complete: false,
       },
     ]);

@@ -1,8 +1,8 @@
 import { useState } from "react";
 
 import type { ObjectiveEntry } from "../hooks/useObjective";
-import type { Trial } from "../transforms/groupTrials";
 import { computeParetoFront } from "../transforms/pareto";
+import { makeTrialKey, type Trial } from "../trial";
 
 interface TrialTableProps {
   trials: Trial[];
@@ -47,7 +47,7 @@ export function TrialTable({
     if (col.key === "trialId") return String(trial.trialId);
     if (col.key.startsWith("obj:")) {
       const resultKey = col.key.slice(4);
-      const val = trial.results[resultKey];
+      const val = trial.finalMetrics[resultKey];
       return val !== undefined ? String(val) : "—";
     }
     const paramKey = col.key.slice(6);
@@ -57,7 +57,7 @@ export function TrialTable({
   function numericCellValue(trial: Trial, colKey: string): number | null {
     if (colKey === "trialId") return trial.trialId;
     if (colKey.startsWith("obj:")) {
-      const val = trial.results[colKey.slice(4)];
+      const val = trial.finalMetrics[colKey.slice(4)];
       return val !== undefined ? val : null;
     }
     if (colKey.startsWith("param:")) {
@@ -102,7 +102,7 @@ export function TrialTable({
   if (paretoOnly && objectives.length > 0) {
     const paretoKeys = computeParetoFront(filtered, objectives);
     filtered = filtered.filter((t) =>
-      paretoKeys.has(`${t.studyName}\0${t.trialId}`),
+      paretoKeys.has(makeTrialKey(t.studyName, t.trialId)),
     );
   }
 
@@ -129,7 +129,7 @@ export function TrialTable({
 
   const allSelected =
     sorted.length > 0 &&
-    sorted.every((t) => selectedIds.has(`${t.studyName}\0${t.trialId}`));
+    sorted.every((t) => selectedIds.has(makeTrialKey(t.studyName, t.trialId)));
 
   return (
     <div>
@@ -170,7 +170,9 @@ export function TrialTable({
               onSelect(new Set());
             } else {
               onSelect(
-                new Set(sorted.map((t) => `${t.studyName}\0${t.trialId}`)),
+                new Set(
+                  sorted.map((t) => makeTrialKey(t.studyName, t.trialId)),
+                ),
               );
             }
           }}
@@ -222,7 +224,7 @@ export function TrialTable({
           </thead>
           <tbody className="rhythm-table text-primary">
             {sorted.map((trial, idx) => {
-              const trialKey = `${trial.studyName}\0${trial.trialId}`;
+              const trialKey = makeTrialKey(trial.studyName, trial.trialId);
               const isSelected = selectedIds.has(trialKey);
               return (
                 <tr
@@ -236,7 +238,7 @@ export function TrialTable({
                       for (let i = from; i <= to; i++) {
                         const t = sorted[i];
                         if (t) {
-                          const key = `${t.studyName}\0${t.trialId}`;
+                          const key = makeTrialKey(t.studyName, t.trialId);
                           anchorMode === "select"
                             ? next.add(key)
                             : next.delete(key);

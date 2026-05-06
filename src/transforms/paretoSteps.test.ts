@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ObjectiveEntry } from "../hooks/useObjective";
-import type { Trial } from "./groupTrials";
+import type { Trial } from "../trial";
 import { computeParetoSteps } from "./paretoSteps";
 
 describe("computeParetoSteps", () => {
@@ -17,7 +17,7 @@ describe("computeParetoSteps", () => {
         studyName: "s",
         trialId: 0,
         params: {},
-        results: { loss: 0.5, latency: 100 },
+        finalMetrics: { loss: 0.5, latency: 100 },
         complete: true,
       },
       // Nondominated (best loss)
@@ -25,7 +25,7 @@ describe("computeParetoSteps", () => {
         studyName: "s",
         trialId: 1,
         params: {},
-        results: { loss: 0.3, latency: 150 },
+        finalMetrics: { loss: 0.3, latency: 150 },
         complete: true,
       },
       // Nondominated (best latency)
@@ -33,7 +33,7 @@ describe("computeParetoSteps", () => {
         studyName: "s",
         trialId: 2,
         params: {},
-        results: { loss: 0.8, latency: 80 },
+        finalMetrics: { loss: 0.8, latency: 80 },
         complete: true,
       },
       // Dominated by T1 (worse on both)
@@ -41,7 +41,7 @@ describe("computeParetoSteps", () => {
         studyName: "s",
         trialId: 3,
         params: {},
-        results: { loss: 0.7, latency: 200 },
+        finalMetrics: { loss: 0.7, latency: 200 },
         complete: true,
       },
     ];
@@ -70,14 +70,14 @@ describe("computeParetoSteps", () => {
         studyName: "s",
         trialId: 0,
         params: {},
-        results: { loss: 0.3, acc: 0.9 },
+        finalMetrics: { loss: 0.3, acc: 0.9 },
         complete: true,
       },
       {
         studyName: "s",
         trialId: 1,
         params: {},
-        results: { loss: 0.3, acc: 0.8 },
+        finalMetrics: { loss: 0.3, acc: 0.8 },
         complete: true,
       },
     ];
@@ -113,7 +113,7 @@ describe("computeParetoSteps", () => {
         studyName: "s",
         trialId: 0,
         params: {},
-        results: { loss: 0.5 },
+        finalMetrics: { loss: 0.5 },
         complete: true,
       },
     ];

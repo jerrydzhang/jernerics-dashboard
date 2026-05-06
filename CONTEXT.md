@@ -4,6 +4,14 @@ A React SPA for analyzing ML experiment data from the jernerics tracking server.
 
 ## Language
 
+**Metrics**:
+All scalar measurements from a trial. Stored in the `metrics` table. Two kinds:
+- **Time-series metrics**: have an integer `step` value (e.g., training loss at step 100).
+- **Final metrics**: have `step IS NULL` (e.g., final accuracy, best loss). Logged via `tracker.log_metric(key, value)` without a step argument. These are the values used as objectives and displayed in the trial table.
+
+**Results**:
+Unstructured JSON data stored in the `results` table. Used for structured outputs like confusion matrices, Pareto frontiers, or other non-scalar data. Not plottable on numeric axes. Displayed as formatted JSON in trial detail views.
+
 **Dashboard**:
 A React SPA that renders sweep analysis views using ECharts. Talks to the tracking server via `/query` (SQL → JSON) and `/artifact/{...}` (artifact proxy). Served as static files by the tracking server — no separate process, no CORS.
 
@@ -31,13 +39,13 @@ Layout, top to bottom:
 Incomplete trials are included in all views by default, visually distinguished (dashed lines in metric curves, status label in table). The dashboard never assumes why a trial is incomplete.
 
 **Objective selector**:
-A per-project control where the user picks one or more result keys as objectives, each with a direction (minimize/maximize). Persisted in localStorage. Single-objective is the degenerate case (list of one). Multi-objective is the expected norm — most ML work involves trade-offs (accuracy vs latency, precision vs recall, complexity vs fit). Charts adapt to the number of objectives:
+A per-project control where the user picks one or more final metric keys as objectives, each with a direction (minimize/maximize). Persisted in localStorage. Single-objective is the degenerate case (list of one). Multi-objective is the expected norm — most ML work involves trade-offs (accuracy vs latency, precision vs recall, complexity vs fit). Charts adapt to the number of objectives:
 - 1 objective: best trial card, single-axis ranking
 - 2 objectives: Pareto front drawn as a stepped line on the scatter plot, nondominated trials highlighted with larger markers
 - 3+ objectives: scatter axis selectors let user pick which 2 objectives to plot; Pareto front computed for all objectives but displayed for the selected pair. Trial table always has "Pareto-optimal only" filter regardless of count.
 
 **Trial detail**:
-All params, metrics, results, and artifact previews for a single trial. Reached by expanding a row in the trial table.
+All params, final metrics, results, and artifact previews for a single trial. Reached by expanding a row in the trial table.
 
 **Trial selection**:
 A shared selection state across all charts. Click or brush on any chart to select trials → those trials are highlighted everywhere (bright), unselected trials are dimmed but remain visible for context. This is an overlay, not a hard filter — you always see the full sweep, with your selected trials standing out.
@@ -70,7 +78,7 @@ Each chart panel is a self-contained React component that receives data via prop
 
 - **Data**: fetched via TanStack Query hooks, passed down as props
 - **Selection state**: which trials are highlighted (shared across panels)
-- **Objective config**: which result keys are objectives, directions
+- **Objective config**: which final metric keys are objectives, directions
 
 Each panel receives: data + selection state + config. Each panel emits: "user selected these trials."
 
@@ -132,10 +140,10 @@ Parameter importance and contour/response surfaces require running Python (Optun
 
 The dashboard must handle these representative workloads (captured in `dev_server/generate.py`):
 
-- **Standard DL training**: loss curves + accuracy over steps, multiple result scalars, image/CSV/JSON artifacts. Params are mixed numeric + categorical + boolean.
+- **Standard DL training**: loss curves + accuracy over steps, multiple final metric scalars, image/CSV/JSON artifacts. Params are mixed numeric + categorical + boolean.
 - **Embedding/ANN search**: recall@K + latency metrics, small step counts, params like ef_construction/n_lists that are all numeric.
-- **Multi-objective**: two competing results (accuracy vs latency) with a Pareto front. Params include categorical model sizes.
-- **Negative-valued results**: log-likelihood (large negative numbers) alongside positive perplexity. Tests that charts handle sign and magnitude correctly.
+- **Multi-objective**: two competing final metrics (accuracy vs latency) with a Pareto front. Params include categorical model sizes.
+- **Negative-valued metrics**: log-likelihood (large negative numbers) alongside positive perplexity. Tests that charts handle sign and magnitude correctly.
 - **Correlated params**: LR × weight_decay interaction producing visible structure in parallel coordinates / heatmaps.
 - **Irregular timestamps**: pause/resume gaps in step data. Steps are still monotonically increasing but wall-clock time has jumps.
 - **Sparse sweeps**: as few as 5 trials with 10 steps — charts must not break or look silly with very little data.

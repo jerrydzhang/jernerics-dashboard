@@ -1,21 +1,14 @@
+import { formatNumber } from "../chartUtils";
 import type { ObjectiveEntry } from "../hooks/useObjective";
 import { parseStudyName } from "../queries/studyName";
-import type { Trial } from "../transforms/groupTrials";
 import { computeObjectiveStats } from "../transforms/objectiveStats";
+import { parseTrialKey, type Trial } from "../trial";
 
 interface ObjectiveSummaryStripProps {
   trials: Trial[];
   objectives: ObjectiveEntry[];
   selectedIds: Set<string>;
   onSelect: (ids: Set<string>) => void;
-}
-
-function formatValue(v: number): string {
-  if (typeof v !== "number" || !Number.isFinite(v)) return "—";
-  if (Number.isInteger(v)) return v.toString();
-  if (Math.abs(v) >= 100) return v.toFixed(1);
-  if (Math.abs(v) >= 1) return v.toFixed(2);
-  return v.toPrecision(3);
 }
 
 function Sparkline({
@@ -33,8 +26,8 @@ function Sparkline({
   const max = Math.max(...bins, 1);
   const barWidth = 100 / bins.length;
 
-  const selectedPerBin = binTrialKeys.map((keys) =>
-    keys.filter((k) => selectedIds.has(k)).length,
+  const selectedPerBin = binTrialKeys.map(
+    (keys) => keys.filter((k) => selectedIds.has(k)).length,
   );
   const hasSelection = selectedIds.size > 0;
 
@@ -43,14 +36,15 @@ function Sparkline({
       viewBox="0 0 100 20"
       className="mt-1.5 w-full"
       preserveAspectRatio="none"
+      role="img"
+      aria-label="Distribution histogram"
     >
       {bins.map((count, i) => {
         const h = (count / max) * 18;
         const selCount = selectedPerBin[i] ?? 0;
         const selH = (selCount / max) * 18;
-        const unselectedH = h - selH;
-
         return (
+          // biome-ignore lint/a11y/noStaticElementInteractions: SVG <g> is the only clickable container inside <svg>
           <g
             key={i}
             onClick={() => onBinClick(binTrialKeys[i] ?? [])}
@@ -114,21 +108,17 @@ function ObjectiveCard({
       </div>
       <div className="mt-1 flex items-baseline gap-2">
         <span className="text-xl font-semibold text-bright">
-          {formatValue(stats.best)}
+          {formatNumber(stats.best)}
         </span>
         <span className="text-xs text-muted">
           {multiSweep
-            ? `${parseStudyName(stats.bestTrialKey.split("\0")[0]!)?.configStem ?? stats.bestTrialKey.split("\0")[0]} #${stats.bestTrialKey.split("\0")[1]}`
-            : `trial ${stats.bestTrialKey.split("\0")[1]}`}
+            ? `${parseStudyName(parseTrialKey(stats.bestTrialKey).studyName)?.configStem ?? parseTrialKey(stats.bestTrialKey).studyName} #${parseTrialKey(stats.bestTrialKey).trialId}`
+            : `trial ${parseTrialKey(stats.bestTrialKey).trialId}`}
         </span>
       </div>
       <div className="mt-0.5 flex gap-3 text-xs text-muted">
-        <span>
-          med {formatValue(stats.median)}
-        </span>
-        <span>
-          wrst {formatValue(stats.worst)}
-        </span>
+        <span>med {formatNumber(stats.median)}</span>
+        <span>wrst {formatNumber(stats.worst)}</span>
       </div>
       <div className="mt-0.5 text-xs text-muted">
         {stats.count} trials
@@ -181,9 +171,5 @@ export function ObjectiveSummaryStrip({
 
   if (cards.length === 0) return null;
 
-  return (
-    <div className="mt-4 flex flex-wrap gap-2">
-      {cards}
-    </div>
-  );
+  return <div className="mt-4 flex flex-wrap gap-2">{cards}</div>;
 }

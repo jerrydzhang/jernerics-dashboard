@@ -1,3 +1,5 @@
+import { makeTrialKey } from "../trial";
+
 export interface TrialArtifacts {
   studyName: string;
   trialId: number;
@@ -15,7 +17,7 @@ export function groupArtifactsByTrial(rows: ArtifactRow[]): TrialArtifacts[] {
   const map = new Map<string, TrialArtifacts>();
 
   for (const row of rows) {
-    const key = `${row.study_name}\0${row.trial_id}`;
+    const key = makeTrialKey(row.study_name, row.trial_id);
     let group = map.get(key);
     if (!group) {
       group = {

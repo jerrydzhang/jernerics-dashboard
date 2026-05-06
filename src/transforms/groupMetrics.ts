@@ -1,3 +1,5 @@
+import { makeTrialKey } from "../trial";
+
 export interface MetricSeries {
   studyName: string;
   trialId: number;
@@ -15,7 +17,7 @@ export function groupMetricsByTrial(rows: MetricRow[]): MetricSeries[] {
   const map = new Map<string, MetricSeries>();
 
   for (const row of rows) {
-    const key = `${row.study_name}\0${row.trial_id}`;
+    const key = makeTrialKey(row.study_name, row.trial_id);
     let series = map.get(key);
     if (!series) {
       series = { studyName: row.study_name, trialId: row.trial_id, steps: [] };

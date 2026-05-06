@@ -19,7 +19,7 @@ import {
   useTrialData,
 } from "./hooks/useTrialData";
 import { parseStudyName } from "./queries/studyName";
-import type { Trial } from "./transforms/groupTrials";
+import { makeTrialKey, type Trial } from "./trial";
 
 const queryClient = new QueryClient();
 
@@ -382,7 +382,7 @@ function StudyView({
       {showComparison && trialData.data && (
         <TrialComparison
           trials={trialData.data.filter((t) =>
-            selectedIds.has(`${t.studyName}\0${t.trialId}`),
+            selectedIds.has(makeTrialKey(t.studyName, t.trialId)),
           )}
           objectives={objectives ?? []}
           project={project}

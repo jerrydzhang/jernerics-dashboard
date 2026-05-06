@@ -150,7 +150,6 @@ def main() -> None:
     # Accumulate all rows as Python lists, bulk-insert at end
     all_params: list[tuple] = []
     all_metrics: list[tuple] = []
-    all_results: list[tuple] = []
     all_artifacts: list[tuple] = []
     all_sweep_meta: list[tuple] = []
     all_trial_end: list[tuple] = []
@@ -227,22 +226,22 @@ def main() -> None:
 
             if project == "embedding-search":
                 _gen_embedding(rng, project, study_name, trial_id, trial_ts, seq, steps_to_gen, param_values,
-                               all_metrics, all_results, all_artifacts)
+                               all_metrics, all_artifacts)
             elif project == "multi-objective":
                 _gen_multi_objective(rng, project, study_name, trial_id, trial_ts, seq, steps_to_gen, param_values,
-                                     all_metrics, all_results, all_artifacts)
+                                     all_metrics, all_artifacts)
             elif config_stem == "lr-wd-interaction":
                 _gen_correlated(rng, project, study_name, trial_id, trial_ts, seq, steps_to_gen, param_values,
-                                all_metrics, all_results, all_artifacts)
+                                all_metrics, all_artifacts)
             elif config_stem == "negative-loss":
                 _gen_negative(rng, project, study_name, trial_id, trial_ts, seq, steps_to_gen, param_values,
-                              all_metrics, all_results, all_artifacts)
+                              all_metrics, all_artifacts)
             elif config_stem == "paused-run":
                 _gen_paused(rng, project, study_name, trial_id, trial_ts, seq, steps_to_gen, param_values,
-                            all_metrics, all_results, all_artifacts)
+                            all_metrics, all_artifacts)
             else:
                 _gen_ml(rng, project, study_name, trial_id, trial_ts, seq, steps_to_gen, param_values,
-                        all_metrics, all_results, all_artifacts)
+                        all_metrics, all_artifacts)
 
             if trial_id < num_trials - num_active:
                 all_trial_end.append((project, study_name, trial_id, trial_ts + num_steps * 1_000_000_000, 0))
@@ -253,7 +252,6 @@ def main() -> None:
     print(f"\nGenerated data in {t1-t0:.1f}s")
     print(f"  params: {len(all_params)}")
     print(f"  metrics: {len(all_metrics)}")
-    print(f"  results: {len(all_results)}")
     print(f"  artifacts: {len(all_artifacts)}")
     print(f"  sweep_meta: {len(all_sweep_meta)}")
     print(f"  trial_end: {len(all_trial_end)}")
@@ -270,10 +268,6 @@ def main() -> None:
     con.executemany(
         "INSERT OR IGNORE INTO metrics VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         all_metrics,
-    )
-    con.executemany(
-        "INSERT OR IGNORE INTO results VALUES (?, ?, ?, ?, ?, ?, ?)",
-        all_results,
     )
     con.executemany(
         "INSERT OR IGNORE INTO artifacts VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -312,7 +306,6 @@ def _gen_ml(
     num_steps: int,
     param_values: dict[str, float | int | str | bool],
     all_metrics: list[tuple],
-    all_results: list[tuple],
     all_artifacts: list[tuple],
 ) -> None:
     lr = param_values["learning_rate"]
@@ -337,11 +330,11 @@ def _gen_ml(
     final_acc = min(1.0, max(0.0, acc_ceiling + rng.uniform(-0.03, 0.03)))
     best_acc = min(1.0, max(0.0, acc_ceiling + rng.uniform(0, 0.02)))
 
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "final_loss", f"{final_loss:.6f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "final_loss", final_loss, None))
     seq += 1
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "final_accuracy", f"{final_acc:.6f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "final_accuracy", final_acc, None))
     seq += 1
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "best_accuracy", f"{best_acc:.6f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "best_accuracy", best_acc, None))
     seq += 1
 
     for key, filename in [
@@ -363,7 +356,6 @@ def _gen_embedding(
     num_steps: int,
     param_values: dict[str, float | int | str | bool],
     all_metrics: list[tuple],
-    all_results: list[tuple],
     all_artifacts: list[tuple],
 ) -> None:
     m = param_values.get("m", 16)
@@ -387,11 +379,11 @@ def _gen_embedding(
     final_recall = min(1.0, max(0.0, recall_ceiling + rng.uniform(-0.02, 0.02)))
     final_latency = max(0.01, base_latency * 0.7 + rng.uniform(-0.05, 0.05))
 
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "final_recall", f"{final_recall:.6f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "final_recall", final_recall, None))
     seq += 1
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "final_latency_ms", f"{final_latency:.6f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "final_latency_ms", final_latency, None))
     seq += 1
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "index_size_gb", f"{index_size_gb:.4f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "index_size_gb", index_size_gb, None))
     seq += 1
 
     for key, filename in [
@@ -413,7 +405,6 @@ def _gen_multi_objective(
     num_steps: int,
     param_values: dict[str, float | int | str | bool],
     all_metrics: list[tuple],
-    all_results: list[tuple],
     all_artifacts: list[tuple],
 ) -> None:
     """Multi-objective: accuracy (maximize) vs inference_latency_ms (minimize).
@@ -450,9 +441,9 @@ def _gen_multi_objective(
     final_acc = min(1.0, max(0.0, acc_ceiling + rng.uniform(-0.02, 0.02)))
     final_latency = max(0.1, base_latency * 0.9 + rng.uniform(-1, 1))
 
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "final_accuracy", f"{final_acc:.6f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "final_accuracy", final_acc, None))
     seq += 1
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "final_inference_latency_ms", f"{final_latency:.2f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "final_inference_latency_ms", final_latency, None))
     seq += 1
 
     for key, filename in [
@@ -473,7 +464,6 @@ def _gen_correlated(
     num_steps: int,
     param_values: dict[str, float | int | str | bool],
     all_metrics: list[tuple],
-    all_results: list[tuple],
     all_artifacts: list[tuple],
 ) -> None:
     """Correlated params: LR × weight_decay interaction.
@@ -510,7 +500,7 @@ def _gen_correlated(
 
     final_loss = max(0.01, loss_floor + rng.uniform(-0.02, 0.02))
 
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "final_loss", f"{final_loss:.6f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "final_loss", final_loss, None))
     seq += 1
 
     for key, filename in [
@@ -531,7 +521,6 @@ def _gen_negative(
     num_steps: int,
     param_values: dict[str, float | int | str | bool],
     all_metrics: list[tuple],
-    all_results: list[tuple],
     all_artifacts: list[tuple],
 ) -> None:
     """Negative-valued results (log-likelihood).
@@ -566,9 +555,9 @@ def _gen_negative(
     final_ll = ll_ceiling + rng.uniform(-10, 10)
     final_ppl = max(1.0, 2.718281828 ** (-final_ll / 100))
 
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "log_likelihood", f"{final_ll:.2f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "log_likelihood", final_ll, None))
     seq += 1
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "perplexity", f"{final_ppl:.2f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "perplexity", final_ppl, None))
     seq += 1
 
     for key, filename in [
@@ -589,7 +578,6 @@ def _gen_paused(
     num_steps: int,
     param_values: dict[str, float | int | str | bool],
     all_metrics: list[tuple],
-    all_results: list[tuple],
     all_artifacts: list[tuple],
 ) -> None:
     """Irregular timestamps with a pause/resume gap.
@@ -620,7 +608,7 @@ def _gen_paused(
 
     final_loss = max(0.01, loss_floor + rng.uniform(-0.02, 0.02))
 
-    all_results.append((project, study_name, trial_id, trial_ts, seq, "final_loss", f"{final_loss:.6f}"))
+    all_metrics.append((project, study_name, trial_id, trial_ts, seq, "final_loss", final_loss, None))
     seq += 1
 
     for key, filename in [

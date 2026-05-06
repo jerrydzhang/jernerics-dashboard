@@ -1,5 +1,6 @@
 import type { ObjectiveEntry } from "../hooks/useObjective";
-import type { Trial } from "./groupTrials";
+import type { Trial } from "../trial";
+import { makeTrialKey } from "../trial";
 import { computeParetoFront } from "./pareto";
 
 /**
@@ -19,10 +20,10 @@ export function computeParetoSteps(
 
   const points: { x: number; y: number; key: string }[] = [];
   for (const t of trials) {
-    const key = `${t.studyName}\0${t.trialId}`;
+    const key = makeTrialKey(t.studyName, t.trialId);
     if (!front.has(key)) continue;
-    const x = t.results[xObj.key];
-    const y = t.results[yObj.key];
+    const x = t.finalMetrics[xObj.key];
+    const y = t.finalMetrics[yObj.key];
     if (x === undefined || y === undefined) continue;
     points.push({ x, y, key });
   }

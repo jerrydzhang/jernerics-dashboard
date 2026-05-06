@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 afterEach(cleanup);
 
 import type { ObjectiveEntry } from "../hooks/useObjective";
-import type { Trial } from "../transforms/groupTrials";
+import type { Trial } from "../trial";
 import { TrialTable } from "./TrialTable";
 
 const trials: Trial[] = [
@@ -12,14 +12,14 @@ const trials: Trial[] = [
     studyName: "sweep_a",
     trialId: 0,
     params: { lr: "0.01", layers: "3" },
-    results: { loss: 0.5, acc: 0.9 },
+    finalMetrics: { loss: 0.5, acc: 0.9 },
     complete: true,
   },
   {
     studyName: "sweep_a",
     trialId: 1,
     params: { lr: "0.001", layers: "2" },
-    results: { loss: 0.3, acc: 0.95 },
+    finalMetrics: { loss: 0.3, acc: 0.95 },
     complete: false,
   },
 ];
@@ -188,14 +188,14 @@ describe("TrialTable", () => {
         studyName: "s",
         trialId: 0,
         params: {},
-        results: { loss: 0.8, acc: 0.7 },
+        finalMetrics: { loss: 0.8, acc: 0.7 },
         complete: true,
       },
       {
         studyName: "s",
         trialId: 1,
         params: {},
-        results: { loss: 0.3, acc: 0.95 },
+        finalMetrics: { loss: 0.3, acc: 0.95 },
         complete: true,
       },
     ];
@@ -241,7 +241,7 @@ describe("TrialTable", () => {
       studyName: "s",
       trialId: i,
       params: {},
-      results: { loss: i * 0.1 },
+      finalMetrics: { loss: i * 0.1 },
       complete: true,
     }));
     const onSelect = vi.fn();
@@ -282,7 +282,7 @@ describe("TrialTable", () => {
       studyName: "s",
       trialId: i,
       params: {},
-      results: { loss: i * 0.1 },
+      finalMetrics: { loss: i * 0.1 },
       complete: true,
     }));
     const onSelect = vi.fn();
@@ -419,21 +419,21 @@ describe("TrialTable", () => {
         studyName: "s",
         trialId: 0,
         params: { optimizer: "sgd" },
-        results: { loss: 0.5 },
+        finalMetrics: { loss: 0.5 },
         complete: true,
       },
       {
         studyName: "s",
         trialId: 1,
         params: { optimizer: "adam" },
-        results: { loss: 0.3 },
+        finalMetrics: { loss: 0.3 },
         complete: true,
       },
       {
         studyName: "s",
         trialId: 2,
         params: { optimizer: "rmsprop" },
-        results: { loss: 0.4 },
+        finalMetrics: { loss: 0.4 },
         complete: true,
       },
     ];

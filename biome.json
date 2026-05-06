@@ -6,6 +6,13 @@
   "formatter": {
     "indentStyle": "space"
   },
+  "linter": {
+    "rules": {
+      "suspicious": {
+        "noArrayIndexKey": "off"
+      }
+    }
+  },
   "css": {
     "parser": {
       "allowWrongLineComments": true,

@@ -1,12 +1,13 @@
 import type { ObjectiveEntry } from "../hooks/useObjective";
-import type { Trial } from "../transforms/groupTrials";
+import type { Trial } from "../trial";
+import { makeTrialKey } from "../trial";
 
 /**
  * Compute the Pareto-optimal (nondominated) set of trials.
  * A trial dominates another if it's at least as good on all objectives
  * and strictly better on at least one.
  *
- * Returns a Set of trial keys ("studyName\0trialId").
+ * Returns a Set of trial keys (via makeTrialKey).
  */
 export function computeParetoFront(
   trials: Trial[],
@@ -28,7 +29,7 @@ export function computeParetoFront(
       }
     }
     if (!dominated) {
-      pareto.add(`${a.studyName}\0${a.trialId}`);
+      pareto.add(makeTrialKey(a.studyName, a.trialId));
     }
   }
 
@@ -40,8 +41,8 @@ function dominates(a: Trial, b: Trial, objectives: ObjectiveEntry[]): boolean {
   let strictlyBetter = false;
 
   for (const obj of objectives) {
-    const va = a.results[obj.key];
-    const vb = b.results[obj.key];
+    const va = a.finalMetrics[obj.key];
+    const vb = b.finalMetrics[obj.key];
     if (va === undefined || vb === undefined) return false;
 
     const better = obj.direction === "minimize" ? va < vb : va > vb;

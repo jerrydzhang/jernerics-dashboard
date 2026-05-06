@@ -1,9 +1,28 @@
 import ReactECharts from "echarts-for-react";
-import { useMemo, useRef, useState } from "react";
-
+import { useEffect, useMemo, useRef, useState } from "react";
+import { buildTrialLookup, shortSweep } from "../chartUtils";
 import type { ObjectiveEntry } from "../hooks/useObjective";
-import type { Trial } from "../transforms/groupTrials";
+import { colors } from "../theme/register";
+import {
+  type AxisScale,
+  inverseAxisScale,
+  scaleLabel,
+} from "../transforms/axisScale";
 import { buildParallelData } from "../transforms/parallelData";
+import { parseTrialKey, type Trial } from "../trial";
+
+/** Strip the ` [scale]` suffix added by buildParallelData */
+function originalAxisName(name: string): string {
+  return name.replace(/ \[[^\]]+\]$/, "");
+}
+
+const ALL_SCALES: AxisScale[] = [
+  "linear",
+  "log",
+  "log1p",
+  "symlog",
+  "negLogOneMinusX",
+];
 
 interface ParallelCoordinatesProps {
   trials: Trial[];
@@ -19,39 +38,48 @@ export function ParallelCoordinates({
   onSelect,
 }: ParallelCoordinatesProps) {
   const [colorIdx, setColorIdx] = useState(0);
+  const [axisScales, setAxisScales] = useState<Map<string, AxisScale>>(
+    new Map(),
+  );
   // Pick first objective for coloring by default, allow switching
   const colorObjective = objectives[colorIdx] ?? objectives[0] ?? null;
 
   const { axes, data, trialKeys } = useMemo(
-    () => buildParallelData(trials, objectives),
-    [trials, objectives],
+    () => buildParallelData(trials, objectives, axisScales),
+    [trials, objectives, axisScales],
   );
 
   // Trial metadata lookup by key for tooltip and incomplete styling
-  const trialLookup = useMemo(() => {
-    const map = new Map<string, Trial>();
-    for (const t of trials) {
-      map.set(`${t.studyName}\0${t.trialId}`, t);
-    }
-    return map;
-  }, [trials]);
+  const trialLookup = useMemo(() => buildTrialLookup(trials), [trials]);
 
   // Compute objective value range for color mapping
+  // Data is already in transformed space; visualMap maps gradient in that space
+  // Text labels are inverse-transformed to show original values
   const colorRange = useMemo(() => {
     if (!colorObjective || data.length === 0) return null;
-    const objAxis = axes.find((a) => a.name === colorObjective.key);
+    const objAxis = axes.find(
+      (a) => originalAxisName(a.name) === colorObjective.key,
+    );
     if (!objAxis) return null;
     const dim = objAxis.dim;
     const values = data
       .map((row) => row[dim])
       .filter((v): v is number => !Number.isNaN(v));
     if (values.length === 0) return null;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const colorScale = axisScales.get(colorObjective.key) ?? "linear";
     return {
-      min: Math.min(...values),
-      max: Math.max(...values),
+      min,
+      max,
       dim,
+      colorScale,
+      textHigh:
+        colorScale !== "linear" ? inverseAxisScale(max, colorScale) : max,
+      textLow:
+        colorScale !== "linear" ? inverseAxisScale(min, colorScale) : min,
     };
-  }, [axes, data, colorObjective]);
+  }, [axes, data, colorObjective, axisScales]);
 
   const option = useMemo(() => {
     if (data.length === 0) {
@@ -64,7 +92,7 @@ export function ParallelCoordinates({
           left: "center",
           top: "center",
           textStyle: {
-            color: "#6d6562",
+            color: colors.base03,
             fontWeight: "normal",
             fontSize: 13,
           },
@@ -99,8 +127,14 @@ export function ParallelCoordinates({
         name: axis.name,
         type: axis.type,
         ...(axis.type === "category" ? { data: axis.data } : {}),
-        nameTextStyle: { color: "#6d6562", fontSize: 11 },
-        axisLabel: { color: "#6d6562", fontSize: 11 },
+        nameTextStyle: { color: colors.base03, fontSize: 11 },
+        axisLabel: {
+          color: colors.base03,
+          fontSize: 11,
+          formatter: axis.tickFormatter
+            ? (value: number) => axis.tickFormatter?.(value)
+            : undefined,
+        },
       })),
       visualMap: colorRange
         ? {
@@ -108,8 +142,8 @@ export function ParallelCoordinates({
             dimension: colorRange.dim,
             min: colorRange.min,
             max: colorRange.max,
-            text: [String(colorRange.max), String(colorRange.min)],
-            textStyle: { color: "#6d6562", fontSize: 10 },
+            text: [String(colorRange.textHigh), String(colorRange.textLow)],
+            textStyle: { color: colors.base03, fontSize: 10 },
             inRange: {
               color: ["#440154", "#21908c", "#fde725"],
             },
@@ -131,11 +165,11 @@ export function ParallelCoordinates({
               }
             | undefined;
           if (!d?.key) return "";
-          const parts = d.key.split("\0");
-          const tId = parts[1] ?? "?";
-          const sweep = d.sweepName ?? parts[0] ?? "";
+          const parts = parseTrialKey(d.key);
+          const tId = parts.trialId || "?";
+          const sweep = d.sweepName ?? parts.studyName ?? "";
           const short = shortSweep(sweep);
-          return `<div style="font-size:11px"><div style="color:#c4a6a8">${short ? `${short} ` : ""}Trial ${tId}</div></div>`;
+          return `<div style="font-size:11px"><div style="color:${colors.base04}">${short ? `${short} ` : ""}Trial ${tId}</div></div>`;
         },
       },
       series: [
@@ -212,6 +246,38 @@ export function ParallelCoordinates({
     onSelect(filtered);
   }
 
+  const [showScalePanel, setShowScalePanel] = useState(false);
+  const scalePanelRef = useRef<HTMLDivElement>(null);
+
+  const numericAxes = axes.filter((a) => a.type === "value");
+
+  function handleScaleChange(axisName: string, scale: AxisScale) {
+    setAxisScales((prev) => {
+      const next = new Map(prev);
+      if (scale === "linear") {
+        next.delete(axisName);
+      } else {
+        next.set(axisName, scale);
+      }
+      return next;
+    });
+  }
+
+  // Dismiss scale panel on outside click
+  useEffect(() => {
+    if (!showScalePanel) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        scalePanelRef.current &&
+        !scalePanelRef.current.contains(e.target as Node)
+      ) {
+        setShowScalePanel(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showScalePanel]);
+
   if (data.length === 0) {
     return (
       <div className="bg-surface p-4">
@@ -243,6 +309,44 @@ export function ParallelCoordinates({
             </select>
           </label>
         )}
+        <div className="relative" ref={scalePanelRef}>
+          <button
+            type="button"
+            className="bg-raised px-2 py-1 text-sm text-primary"
+            onClick={() => setShowScalePanel((v) => !v)}
+          >
+            Scale{axisScales.size > 0 ? ` (${axisScales.size})` : ""}
+          </button>
+          {showScalePanel && (
+            <div className="absolute left-0 top-full z-10 mt-1 min-w-[180px] bg-raised p-2">
+              {numericAxes.map((axis) => {
+                const origName = originalAxisName(axis.name);
+                const currentScale = axisScales.get(origName) ?? "linear";
+                return (
+                  <label
+                    key={origName}
+                    className="flex items-center justify-between gap-2 py-0.5 text-sm"
+                  >
+                    <span className="text-muted truncate">{origName}</span>
+                    <select
+                      value={currentScale}
+                      onChange={(e) =>
+                        handleScaleChange(origName, e.target.value as AxisScale)
+                      }
+                      className="bg-deep px-1 py-0.5 text-xs text-primary"
+                    >
+                      {ALL_SCALES.map((s) => (
+                        <option key={s} value={s}>
+                          {scaleLabel(s)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
       <ReactECharts
         ref={chartRef}
@@ -253,10 +357,4 @@ export function ParallelCoordinates({
       />
     </div>
   );
-}
-
-function shortSweep(name: string): string {
-  const idx = name.lastIndexOf("_");
-  if (idx < 0) return name;
-  return name.slice(0, idx);
 }

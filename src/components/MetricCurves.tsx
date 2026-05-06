@@ -1,12 +1,21 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo, useState } from "react";
 
-import type { Trial } from "../hooks/useTrialData";
-import { categorical } from "../theme/register";
-import type { AxisScale } from "../transforms/axisScale";
-import { applyAxisScale } from "../transforms/axisScale";
+import {
+  buildSweepColorMap,
+  buildTrialLookup,
+  formatNumber,
+  shortSweep,
+} from "../chartUtils";
+import { colors, withAlpha } from "../theme/register";
+import {
+  type AxisScale,
+  applyAxisScale,
+  scaleLabel,
+} from "../transforms/axisScale";
 import type { MetricSeries } from "../transforms/groupMetrics";
 import { computePercentileBands } from "../transforms/percentileBands";
+import { makeTrialKey, type Trial } from "../trial";
 
 interface MetricCurvesProps {
   series: MetricSeries[];
@@ -31,28 +40,17 @@ export function MetricCurves({
   const hasSelection = selectedIds.size > 0;
 
   // Build a lookup for trial complete status
-  const trialLookup = useMemo(() => {
-    const map = new Map<string, Trial>();
-    for (const t of trials) {
-      map.set(`${t.studyName}\0${t.trialId}`, t);
-    }
-    return map;
-  }, [trials]);
+  const trialLookup = useMemo(() => buildTrialLookup(trials), [trials]);
 
   // Assign sweep colors
   const sweepNames = useMemo(
     () => [...new Set(series.map((s) => s.studyName))],
     [series],
   );
-  const sweepColor = useMemo(() => {
-    const map = new Map<string, string>();
-    const palette = categorical;
-    for (const [i, name] of sweepNames.entries()) {
-      const c = palette[i % palette.length];
-      if (c) map.set(name, c);
-    }
-    return map;
-  }, [sweepNames]);
+  const sweepColor = useMemo(
+    () => buildSweepColorMap(sweepNames),
+    [sweepNames],
+  );
 
   // Per-sweep bands
   const sweepBands = useMemo(() => {
@@ -99,14 +97,18 @@ export function MetricCurves({
             : "Select a metric to view curves",
           left: "center",
           top: "center",
-          textStyle: { color: "#6d6562", fontWeight: "normal", fontSize: 13 },
+          textStyle: {
+            color: colors.base03,
+            fontWeight: "normal",
+            fontSize: 13,
+          },
         },
       };
     }
 
     // Individual trial lines
     const trialLines = series.map((s) => {
-      const key = `${s.studyName}\0${s.trialId}`;
+      const key = makeTrialKey(s.studyName, s.trialId);
       const trial = trialLookup.get(key);
       const isSelected = hasSelection && selectedIds.has(key);
       const dimOpacity = Math.max(0.02, 0.6 / Math.sqrt(series.length));
@@ -158,23 +160,24 @@ export function MetricCurves({
           const step = params[0]?.value[0];
           let html = `<div style="font-size:11px">`;
           if (step != null)
-            html += `<div style="color:#6d6562">step ${step}</div>`;
+            html += `<div style="color:${colors.base03}">step ${step}</div>`;
           let anyBand = false;
           for (const p of params) {
             if (p.seriesIndex < bandSeriesCount) {
               // Band or P50 series — name is "<sweep> P25-P75" or "<sweep> P50"
               const color =
-                sweepColor.get(p.seriesName.split(" ")[0] ?? "") ?? "#6d6562";
+                sweepColor.get(p.seriesName.split(" ")[0] ?? "") ??
+                colors.base03;
               const sweepName = p.seriesName.split(" ")[0] ?? "";
               const band = sweepBands.get(sweepName);
               if (!band) continue;
               if (p.seriesName.includes("P50")) {
-                html += `<div style="color:${color}">${shortSweep(sweepName)} P50: ${formatVal(p.value[1])}</div>`;
+                html += `<div style="color:${color}">${shortSweep(sweepName)} P50: ${formatNumber(p.value[1])}</div>`;
                 anyBand = true;
               } else {
                 const stepIdx = band.steps.indexOf(p.value[0] ?? 0);
                 if (stepIdx >= 0) {
-                  html += `<div style="color:${color}">${shortSweep(sweepName)} P25–P75: ${formatVal(band.pLow[stepIdx])}–${formatVal(band.pHigh[stepIdx])}</div>`;
+                  html += `<div style="color:${color}">${shortSweep(sweepName)} P25–P75: ${formatNumber(band.pLow[stepIdx])}–${formatNumber(band.pHigh[stepIdx])}</div>`;
                   anyBand = true;
                 }
               }
@@ -184,13 +187,13 @@ export function MetricCurves({
             const trialIdx = p.seriesIndex - bandSeriesCount;
             const s = series[trialIdx];
             if (!s) continue;
-            const key = `${s.studyName}\0${s.trialId}`;
+            const key = makeTrialKey(s.studyName, s.trialId);
             if (hasSelection && !selectedIds.has(key)) continue;
-            const color = sweepColor.get(s.studyName) ?? "#c4a6a8";
-            html += `<div style="color:${color}">T${s.trialId}: ${formatVal(p.value[1])}</div>`;
+            const color = sweepColor.get(s.studyName) ?? colors.base04;
+            html += `<div style="color:${color}">T${s.trialId}: ${formatNumber(p.value[1])}</div>`;
           }
           if (!anyBand && !hasSelection) {
-            html += `<div style="color:#6d6562">${series.length} trials</div>`;
+            html += `<div style="color:${colors.base03}">${series.length} trials</div>`;
           }
           html += "</div>";
           return html;
@@ -199,8 +202,8 @@ export function MetricCurves({
       xAxis: {
         type: "value" as const,
         name: "step",
-        nameTextStyle: { color: "#6d6562", fontSize: 11 },
-        axisLabel: { color: "#6d6562", fontSize: 11 },
+        nameTextStyle: { color: colors.base03, fontSize: 11 },
+        axisLabel: { color: colors.base03, fontSize: 11 },
         axisLine: { show: false },
         splitLine: { show: false },
       },
@@ -217,32 +220,32 @@ export function MetricCurves({
           height: 18,
           bottom: 8,
           borderColor: "transparent",
-          backgroundColor: "#1a1918",
-          fillerColor: "rgba(196,166,168,0.08)",
-          handleStyle: { color: "#6d6562", borderColor: "#6d6562" },
+          backgroundColor: colors.base01,
+          fillerColor: withAlpha(colors.base04, 0.08),
+          handleStyle: { color: colors.base03, borderColor: colors.base03 },
           dataBackground: {
-            lineStyle: { color: "#292624" },
+            lineStyle: { color: colors.base02 },
             areaStyle: { color: "transparent" },
           },
           selectedDataBackground: {
-            lineStyle: { color: "#292624" },
+            lineStyle: { color: colors.base02 },
             areaStyle: { color: "transparent" },
           },
-          textStyle: { color: "#6d6562", fontSize: 10 },
+          textStyle: { color: colors.base03, fontSize: 10 },
         },
       ],
       yAxis: {
         type: "value" as const,
         name: selectedMetricKey ?? "",
-        nameTextStyle: { color: "#6d6562", fontSize: 11 },
-        axisLabel: { color: "#6d6562", fontSize: 11 },
-        axisLine: { lineStyle: { color: "#292624" } },
-        splitLine: { lineStyle: { color: "#292624", type: "dashed" } },
+        nameTextStyle: { color: colors.base03, fontSize: 11 },
+        axisLabel: { color: colors.base03, fontSize: 11 },
+        axisLine: { lineStyle: { color: colors.base02 } },
+        splitLine: { lineStyle: { color: colors.base02, type: "dashed" } },
       },
       series: [
         // Per-sweep bands and P50 lines
         ...[...sweepBands.entries()].flatMap(([sweep, band]) => {
-          const color = sweepColor.get(sweep) ?? "#c4a6a8";
+          const color = sweepColor.get(sweep) ?? colors.base04;
           return [
             {
               type: "custom" as const,
@@ -313,13 +316,19 @@ export function MetricCurves({
     if (tidx < 0 || tidx >= series.length) return;
     const s = series[tidx];
     if (!s) return;
-    const key = `${s.studyName}\0${s.trialId}`;
+    const key = makeTrialKey(s.studyName, s.trialId);
     const next = new Set(selectedIds);
     next.has(key) ? next.delete(key) : next.add(key);
     onSelect(next);
   }
 
-  const scales: AxisScale[] = ["linear", "log", "symlog", "negLogOneMinusX"];
+  const scales: AxisScale[] = [
+    "linear",
+    "log",
+    "log1p",
+    "symlog",
+    "negLogOneMinusX",
+  ];
 
   return (
     <div className="bg-surface p-4">
@@ -358,37 +367,4 @@ export function MetricCurves({
       />
     </div>
   );
-}
-
-function scaleLabel(s: AxisScale): string {
-  switch (s) {
-    case "linear":
-      return "Linear";
-    case "log":
-      return "Log";
-    case "symlog":
-      return "Symlog";
-    case "negLogOneMinusX":
-      return "-log₁₀(1-x)";
-  }
-}
-
-function formatVal(v: number | null | undefined): string {
-  if (v == null) return "—";
-  if (Math.abs(v) >= 100) return v.toFixed(1);
-  if (Math.abs(v) >= 1) return v.toFixed(3);
-  return v.toPrecision(3);
-}
-
-function shortSweep(name: string): string {
-  const idx = name.lastIndexOf("_");
-  if (idx < 0) return name;
-  return name.slice(0, idx);
-}
-
-function withAlpha(hex: string, alpha: number): string {
-  const r = Number.parseInt(hex.slice(1, 3), 16);
-  const g = Number.parseInt(hex.slice(3, 5), 16);
-  const b = Number.parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
 }

@@ -1,8 +1,7 @@
 import * as Popover from "@radix-ui/react-popover";
 import { useState } from "react";
-
+import { useFinalMetricKeys } from "../hooks/useFinalMetricKeys";
 import type { ObjectiveEntry } from "../hooks/useObjective";
-import { useResultKeys } from "../hooks/useResultKeys";
 
 interface ObjectiveToolbarProps {
   project: string;
@@ -17,7 +16,7 @@ export function ObjectiveToolbar({
   objectives,
   onSetObjectives,
 }: ObjectiveToolbarProps) {
-  const resultKeys = useResultKeys(project, sweepNames);
+  const finalMetricKeys = useFinalMetricKeys(project, sweepNames);
   const entries = objectives ?? [];
   const hasObjectives = entries.length > 0;
 
@@ -55,7 +54,7 @@ export function ObjectiveToolbar({
             sideOffset={4}
           >
             <ObjectiveEditor
-              availableKeys={resultKeys.data ?? []}
+              availableKeys={finalMetricKeys.data ?? []}
               entries={entries}
               onSetObjectives={onSetObjectives}
             />
@@ -103,7 +102,7 @@ function ObjectiveEditor({
   const selectedKeys = new Set(draft.map((e) => e.key));
 
   if (availableKeys.length === 0) {
-    return <p className="text-sm text-muted">No result keys found</p>;
+    return <p className="text-sm text-muted">No final metrics found</p>;
   }
 
   return (

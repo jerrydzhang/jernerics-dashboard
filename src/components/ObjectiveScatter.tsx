@@ -1,10 +1,24 @@
 import ReactECharts from "echarts-for-react";
 import { useMemo, useState } from "react";
-
+import { buildSweepColorMap, formatNumber, shortSweep } from "../chartUtils";
 import type { ObjectiveEntry } from "../hooks/useObjective";
-import { categorical } from "../theme/register";
-import type { Trial } from "../transforms/groupTrials";
+import { colors } from "../theme/register";
+import {
+  type AxisScale,
+  applyAxisScale,
+  inverseAxisScale,
+  scaleLabel,
+} from "../transforms/axisScale";
 import { computeParetoSteps } from "../transforms/paretoSteps";
+import { makeTrialKey, parseTrialKey, type Trial } from "../trial";
+
+const ALL_SCALES: AxisScale[] = [
+  "linear",
+  "log",
+  "log1p",
+  "symlog",
+  "negLogOneMinusX",
+];
 
 interface ObjectiveScatterProps {
   trials: Trial[];
@@ -24,6 +38,8 @@ export function ObjectiveScatter({
   // For 3+ objectives, axis selectors default to first two
   const [xIdx, setXIdx] = useState(0);
   const [yIdx, setYIdx] = useState(objCount >= 2 ? 1 : 0);
+  const [xScale, setXScale] = useState<AxisScale>("linear");
+  const [yScale, setYScale] = useState<AxisScale>("linear");
 
   // Axis objectives
   const xAxisObj = objectives[xIdx] ?? null;
@@ -31,16 +47,14 @@ export function ObjectiveScatter({
 
   const hasSelection = selectedIds.size > 0;
 
-  // Sweep colors
-  const sweepColor = useMemo(() => {
-    const names = [...new Set(trials.map((t) => t.studyName))];
-    const map = new Map<string, string>();
-    for (const [i, name] of names.entries()) {
-      const color = categorical[i % categorical.length];
-      if (color) map.set(name, color);
-    }
-    return map;
-  }, [trials]);
+  const sweepNames = useMemo(
+    () => [...new Set(trials.map((t) => t.studyName))],
+    [trials],
+  );
+  const sweepColor = useMemo(
+    () => buildSweepColorMap(sweepNames),
+    [sweepNames],
+  );
 
   // Pareto front steps (only when 2 objectives plotted)
   const paretoSteps = useMemo(() => {
@@ -64,11 +78,11 @@ export function ObjectiveScatter({
       // 1 objective: trial index vs value
       return trials
         .map((t, i): ScatterItem | null => {
-          const val = t.results[xAxisObj.key];
+          const val = t.finalMetrics[xAxisObj.key];
           if (val === undefined) return null;
           return {
             value: [i, val],
-            key: `${t.studyName}\0${t.trialId}`,
+            key: makeTrialKey(t.studyName, t.trialId),
             studyName: t.studyName,
             trialId: t.trialId,
             complete: t.complete,
@@ -81,12 +95,12 @@ export function ObjectiveScatter({
     if (!yAxisObj) return [];
     return trials
       .map((t): ScatterItem | null => {
-        const xv = t.results[xAxisObj.key];
-        const yv = t.results[yAxisObj.key];
+        const xv = t.finalMetrics[xAxisObj.key];
+        const yv = t.finalMetrics[yAxisObj.key];
         if (xv === undefined || yv === undefined) return null;
         return {
           value: [xv, yv],
-          key: `${t.studyName}\0${t.trialId}`,
+          key: makeTrialKey(t.studyName, t.trialId),
           studyName: t.studyName,
           trialId: t.trialId,
           complete: t.complete,
@@ -104,7 +118,11 @@ export function ObjectiveScatter({
             : "Configure objectives to see scatter",
           left: "center",
           top: "center",
-          textStyle: { color: "#6d6562", fontWeight: "normal", fontSize: 13 },
+          textStyle: {
+            color: colors.base03,
+            fontWeight: "normal",
+            fontSize: 13,
+          },
         },
       };
     }
@@ -114,51 +132,71 @@ export function ObjectiveScatter({
     // Separate nondominated keys for larger markers
     const paretoKeys = new Set(paretoSteps.map((p) => p.key));
 
+    // Helper: transform a value, returning NaN for out-of-domain
+    const tx = (v: number) => {
+      const r = applyAxisScale(v, xScale);
+      return r !== null ? r : NaN;
+    };
+    const ty = (v: number) => {
+      const r = applyAxisScale(v, yScale);
+      return r !== null ? r : NaN;
+    };
+
     const series: unknown[] = [];
 
     // Pareto stepped line (2+ objectives)
     if (paretoSteps.length >= 2 && yAxisObj) {
-      // Build staircase: for each consecutive pair, insert an intermediate point
       const stairData: [number, number][] = [];
       for (const step of paretoSteps) {
+        const sx = tx(step.x);
+        const sy = ty(step.y);
+        if (Number.isNaN(sx) || Number.isNaN(sy)) continue;
         if (stairData.length > 0) {
           const prev = stairData[stairData.length - 1];
-          if (prev) stairData.push([step.x, prev[1]]);
+          if (prev) stairData.push([sx, prev[1]]);
         }
-        stairData.push([step.x, step.y]);
+        stairData.push([sx, sy]);
       }
 
       series.push({
         type: "line",
         name: "Pareto front",
         data: stairData,
-        lineStyle: { color: "#c4a6a8", width: 1.5, type: "dashed" },
+        lineStyle: { color: colors.base04, width: 1.5, type: "dashed" },
         symbol: "none",
         z: 0,
         silent: true,
       });
     }
 
-    // Scatter series
+    // Scatter series (transform values for display)
     series.push({
       type: "scatter",
       name: "Trials",
-      data: scatterData.map((item: ScatterItem) => ({
-        value: item.value,
-        key: item.key,
-        sweepName: item.studyName,
-        sweepColor: sweepColor.get(item.studyName) ?? "#c4a6a8",
-        symbol: item.complete ? "circle" : "diamond",
-        itemStyle: {
-          color: sweepColor.get(item.studyName),
-          opacity: hasSelection
-            ? selectedIds.has(item.key)
-              ? 1
-              : dimOpacity
-            : 1,
-        },
-        symbolSize: paretoKeys.has(item.key) ? 12 : 7,
-      })),
+      data: scatterData.map((item: ScatterItem) => {
+        const rawX = item.value[0];
+        const rawY = item.value[1];
+        const chartX = objCount === 1 ? rawX : tx(rawX);
+        const chartY = ty(rawY);
+        return {
+          value: [chartX, chartY] as [number, number],
+          rawX,
+          rawY,
+          key: item.key,
+          sweepName: item.studyName,
+          sweepColor: sweepColor.get(item.studyName) ?? colors.base04,
+          symbol: item.complete ? "circle" : "diamond",
+          itemStyle: {
+            color: sweepColor.get(item.studyName),
+            opacity: hasSelection
+              ? selectedIds.has(item.key)
+                ? 1
+                : dimOpacity
+              : 1,
+          },
+          symbolSize: paretoKeys.has(item.key) ? 12 : 7,
+        };
+      }),
       z: 5,
     });
 
@@ -178,19 +216,18 @@ export function ObjectiveScatter({
           const data = params.data as Record<string, unknown> | undefined;
           if (!data) return "no data";
           const key = data.key as string | undefined;
-          const value = data.value as number[] | undefined;
-          const trialId = key?.split("\0")[1] ?? "?";
+          const trialId = key ? parseTrialKey(key).trialId : "?";
           const sweep = (data.sweepName as string) ?? "";
-          const color = (data.sweepColor as string) ?? "#c4a6a8";
-          const xv = value?.[0];
-          const yv = value?.[1];
+          const color = (data.sweepColor as string) ?? colors.base04;
+          const rawX = data.rawX as number | undefined;
+          const rawY = data.rawY as number | undefined;
           const xLabel = xName || "index";
           const yLabel = yName || xName;
           const sweepShort = shortSweep(sweep);
           return `<div style="font-size:11px">
             <div style="color:${color}">${sweepShort ? `${sweepShort} ` : ""}Trial ${trialId}</div>
-            ${xv != null ? `<div>${xLabel}: ${fmtNum(xv)}</div>` : ""}
-            ${objCount >= 2 && yv != null ? `<div>${yLabel}: ${fmtNum(yv)}</div>` : ""}
+            ${rawX != null ? `<div>${xLabel}: ${formatNumber(rawX)}</div>` : ""}
+            ${objCount >= 2 && rawY != null ? `<div>${yLabel}: ${formatNumber(rawY)}</div>` : ""}
           </div>`;
         },
       },
@@ -199,10 +236,14 @@ export function ObjectiveScatter({
         name: objCount === 1 ? "Trial" : xName,
         nameLocation: "middle",
         nameGap: 30,
-        nameTextStyle: { color: "#6d6562", fontSize: 11 },
+        nameTextStyle: { color: colors.base03, fontSize: 11 },
         axisLabel: {
-          color: "#6d6562",
+          color: colors.base03,
           fontSize: 11,
+          formatter:
+            xScale !== "linear" && objCount >= 2
+              ? (v: number) => formatNumber(inverseAxisScale(v, xScale))
+              : undefined,
         },
         axisLine: { show: false },
         splitLine: { show: false },
@@ -210,10 +251,17 @@ export function ObjectiveScatter({
       yAxis: {
         type: "value",
         name: yName,
-        nameTextStyle: { color: "#6d6562", fontSize: 11 },
-        axisLabel: { color: "#6d6562", fontSize: 11 },
-        axisLine: { lineStyle: { color: "#292624" } },
-        splitLine: { lineStyle: { color: "#292624", type: "dashed" } },
+        nameTextStyle: { color: colors.base03, fontSize: 11 },
+        axisLabel: {
+          color: colors.base03,
+          fontSize: 11,
+          formatter:
+            yScale !== "linear"
+              ? (v: number) => formatNumber(inverseAxisScale(v, yScale))
+              : undefined,
+        },
+        axisLine: { lineStyle: { color: colors.base02 } },
+        splitLine: { lineStyle: { color: colors.base02, type: "dashed" } },
       },
       dataZoom: [
         {
@@ -238,6 +286,8 @@ export function ObjectiveScatter({
     xAxisObj,
     yAxisObj,
     objCount,
+    xScale,
+    yScale,
   ]);
 
   function handleClick(params: {
@@ -252,40 +302,77 @@ export function ObjectiveScatter({
     onSelect(next);
   }
 
+  const showXScale = objCount >= 2;
+  const showYScale = true;
+
   return (
     <div className="bg-surface p-4">
-      {objCount >= 3 && (
-        <div className="mb-3 flex items-center gap-3">
+      <div className="mb-3 flex items-center gap-3 flex-wrap">
+        {objCount >= 3 && (
+          <>
+            <label className="text-sm text-muted">
+              X:{" "}
+              <select
+                value={xIdx}
+                onChange={(e) => setXIdx(Number(e.target.value))}
+                className="bg-raised px-2 py-1 text-sm text-primary"
+              >
+                {objectives.map((o, i) => (
+                  <option key={o.key} value={i}>
+                    {o.key}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm text-muted">
+              Y:{" "}
+              <select
+                value={yIdx}
+                onChange={(e) => setYIdx(Number(e.target.value))}
+                className="bg-raised px-2 py-1 text-sm text-primary"
+              >
+                {objectives.map((o, i) => (
+                  <option key={o.key} value={i}>
+                    {o.key}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+        {showXScale && (
           <label className="text-sm text-muted">
-            X:{" "}
+            X scale{" "}
             <select
-              value={xIdx}
-              onChange={(e) => setXIdx(Number(e.target.value))}
+              value={xScale}
+              onChange={(e) => setXScale(e.target.value as AxisScale)}
               className="bg-raised px-2 py-1 text-sm text-primary"
             >
-              {objectives.map((o, i) => (
-                <option key={o.key} value={i}>
-                  {o.key}
+              {ALL_SCALES.map((s) => (
+                <option key={s} value={s}>
+                  {scaleLabel(s)}
                 </option>
               ))}
             </select>
           </label>
+        )}
+        {showYScale && (
           <label className="text-sm text-muted">
-            Y:{" "}
+            Y scale{" "}
             <select
-              value={yIdx}
-              onChange={(e) => setYIdx(Number(e.target.value))}
+              value={yScale}
+              onChange={(e) => setYScale(e.target.value as AxisScale)}
               className="bg-raised px-2 py-1 text-sm text-primary"
             >
-              {objectives.map((o, i) => (
-                <option key={o.key} value={i}>
-                  {o.key}
+              {ALL_SCALES.map((s) => (
+                <option key={s} value={s}>
+                  {scaleLabel(s)}
                 </option>
               ))}
             </select>
           </label>
-        </div>
-      )}
+        )}
+      </div>
       <ReactECharts
         option={option}
         theme="mountain"
@@ -294,18 +381,4 @@ export function ObjectiveScatter({
       />
     </div>
   );
-}
-
-function fmtNum(v: unknown): string {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return String(v);
-  if (Math.abs(n) >= 100) return n.toFixed(1);
-  if (Math.abs(n) >= 1) return n.toFixed(3);
-  return n.toPrecision(3);
-}
-
-function shortSweep(name: string): string {
-  const idx = name.lastIndexOf("_");
-  if (idx < 0) return name;
-  return name.slice(0, idx);
 }
